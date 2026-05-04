@@ -9,6 +9,7 @@ export const BOUNDARY_CHECKS = [
   ["lint:tmp:channel-agnostic-boundaries", "pnpm", ["run", "lint:tmp:channel-agnostic-boundaries"]],
   ["lint:tmp:tsgo-core-boundary", "pnpm", ["run", "lint:tmp:tsgo-core-boundary"]],
   ["lint:tmp:no-raw-channel-fetch", "pnpm", ["run", "lint:tmp:no-raw-channel-fetch"]],
+  ["lint:tmp:raw-socket-classification", "pnpm", ["run", "lint:tmp:raw-socket-classification"]],
   ["lint:agent:ingress-owner", "pnpm", ["run", "lint:agent:ingress-owner"]],
   [
     "lint:plugins:no-register-http-handler",
