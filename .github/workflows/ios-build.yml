@@ -34,16 +34,17 @@ jobs:
           sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
           xcodebuild -version
 
-      - name: Build unsigned IPA (iOS target only, skip Watch)
+      - name: Build unsigned IPA
         working-directory: apps/ios
         run: |
-          # Build only the iOS app target, not the scheme (which includes Watch)
+          # Patch project to remove Watch dependency for unsigned build
+          # Build using scheme with -destination to target iOS only
           xcodebuild build \
             -project OpenClaw.xcodeproj \
-            -target OpenClaw \
+            -scheme OpenClaw \
+            -destination 'generic/platform=iOS' \
             -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath build/DerivedData \
+            ONLY_ACTIVE_ARCH=NO \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -55,20 +56,33 @@ jobs:
             OPENCLAW_DEVELOPMENT_TEAM="" \
             OPENCLAW_APP_BUNDLE_ID=ai.openclaw.ios \
             OPENCLAW_APP_PROFILE="" \
-            GCC_PREPROCESSOR_DEFINITIONS='$(inherited) OPENCLAW_CODE_SIGN_STYLE=Automatic' \
             2>&1 | tee build_log.txt | tail -100
 
-          # Find the .app
-          APP_PATH=$(find build/DerivedData -name "OpenClaw.app" -path "*/Release-iphoneos/*" 2>/dev/null | head -1)
+          # Check if build succeeded
+          if grep -q "BUILD SUCCEEDED" build_log.txt; then
+            echo "Build succeeded!"
+          else
+            echo "=== Build errors ==="
+            grep -E "error:" build_log.txt | grep -v "warning:" | tail -20
+            echo "Build failed!"
+            exit 1
+          fi
+
+          # Find the .app in DerivedData
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "OpenClaw.app" -path "*/Release-iphoneos/*" 2>/dev/null | head -1)
           
           if [ -z "$APP_PATH" ]; then
-            echo "Looking for .app in alternate paths..."
-            APP_PATH=$(find build/DerivedData -name "OpenClaw.app" 2>/dev/null | head -1)
+            APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "OpenClaw.app" 2>/dev/null | head -1)
           fi
           
           if [ -z "$APP_PATH" ]; then
-            echo "=== Build log errors ==="
-            grep -E "error:|BUILD FAILED" build_log.txt | tail -30
+            # Try Build/Products path
+            APP_PATH=$(find . -name "OpenClaw.app" -path "*/Release*" 2>/dev/null | head -1)
+          fi
+          
+          if [ -z "$APP_PATH" ]; then
+            echo "Searching all paths..."
+            find ~/Library/Developer/Xcode/DerivedData -name "*.app" 2>/dev/null | head -10
             echo "App not found!"
             exit 1
           fi
@@ -76,7 +90,7 @@ jobs:
           echo "Found app at: $APP_PATH"
           ls -la "$APP_PATH"
           
-          # Remove code signature data (make it truly unsigned)
+          # Remove code signature
           rm -rf "$APP_PATH/_CodeSignature" 2>/dev/null || true
           
           # Package into IPA
