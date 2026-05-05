@@ -65,6 +65,7 @@ Docs: https://docs.openclaw.ai
 
 - WhatsApp/onboarding: canonicalize setup and pairing allowlist entries to WhatsApp's digit-only phone ids while still accepting E.164, JID, and `whatsapp:` inputs, so personal-phone allowlists match WhatsApp Web sender ids after setup. Thanks @vincentkoc.
 - Gateway/startup: load provider plugins that own explicitly configured image, video, or music generation defaults so generation tools become live after gateway restart instead of remaining catalog-only. Fixes #77244. Thanks @buyuangtampan, @Nikoxx99, and @vincentkoc.
+- CLI/channels: skip config, proxy, channel-option catalog, banner-config, and plugin startup bootstrap for the bare `openclaw channels` parent-help command, so it exits promptly after printing help instead of loading configured channel plugins. Thanks @vincentkoc.
 - Slack/subagents: keep resumed parent `message.send` calls in the originating Slack thread when ambient session thread context is present, and suppress successful silent child completion rows from follow-up findings. Thanks @bek91.
 - Slack/mentions: record thread participation for successful visible threaded Slack sends, including message-tool and media delivery paths, so unmentioned replies in bot-participated threads can bypass mention gating as documented. Fixes #77648. Thanks @bek91.
 - Infra/Windows: skip the POSIX `/tmp/openclaw` preferred path on Windows in `resolvePreferredOpenClawTmpDir` so log files, TTS temp files, and other writes land in `%TEMP%\openclaw-<uid>` instead of `C:\tmp\openclaw`. Fixes #60713. Thanks @juan-flores077.
