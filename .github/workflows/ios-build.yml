@@ -25,24 +25,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile || pnpm install
 
-      - name: Strip pre-build lint scripts from project.yml
+      - name: Strip lint scripts from project.yml
         working-directory: apps/ios
         run: |
-          # Remove SwiftFormat and SwiftLint preBuildScripts so they don't block the build
-          python3 -c "
-          import yaml
-          with open('project.yml', 'r') as f:
-              p = yaml.safe_load(f)
-          # Remove preBuildScripts from OpenClaw target
-          for t in p.get('targets', {}).values():
-              if 'preBuildScripts' in t:
-                  del t['preBuildScripts']
-              if 'postCompileScripts' in t:
-                  del t['postCompileScripts']
-          with open('project.yml', 'w') as f:
-              yaml.dump(p, f, default_flow_style=False)
-          print('Stripped lint scripts from project.yml')
-          "
+          # Use sed to remove preBuildScripts and postCompileScripts blocks
+          # First install yq for reliable YAML editing
+          brew install yq
+          yq 'del(.targets.OpenClaw.preBuildScripts)' -i project.yml
+          yq 'del(.targets.OpenClaw.postCompileScripts)' -i project.yml
+          echo "Stripped lint scripts"
+          grep -c "preBuildScripts" project.yml || echo "No preBuildScripts left"
 
       - name: Generate Xcode project
         working-directory: apps/ios
@@ -84,7 +76,6 @@ jobs:
             exit 1
           fi
 
-          # Find the .app
           APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "OpenClaw.app" -path "*/Release-iphoneos/*" 2>/dev/null | head -1)
           if [ -z "$APP_PATH" ]; then
             APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "OpenClaw.app" 2>/dev/null | head -1)
