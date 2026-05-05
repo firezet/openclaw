@@ -11,9 +11,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: List available Xcode versions
-        run: ls /Applications/ | grep Xcode
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -23,7 +20,7 @@ jobs:
         run: |
           corepack enable
           corepack prepare pnpm@latest --activate
-          brew install xcodegen
+          brew install xcodegen swiftformat swiftlint
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile || pnpm install
@@ -32,42 +29,35 @@ jobs:
         working-directory: apps/ios
         run: xcodegen generate
 
-      - name: Select Xcode 26 beta
+      - name: Select Xcode 26
         run: |
-          # Find Xcode 26 or latest available
-          XCODE_26=$(ls -d /Applications/Xcode_26* 2>/dev/null | head -1)
-          if [ -n "$XCODE_26" ]; then
-            echo "Found: $XCODE_26"
-            sudo xcode-select -s "$XCODE_26/Contents/Developer"
-          else
-            echo "Xcode 26 not found, trying Xcode_16.4 or latest..."
-            LATEST=$(ls -d /Applications/Xcode_* | sort -V | tail -1)
-            echo "Using: $LATEST"
-            sudo xcode-select -s "$LATEST/Contents/Developer"
-          fi
+          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
           xcodebuild -version
 
-      - name: Build unsigned IPA
+      - name: Build unsigned IPA (iOS target only, skip Watch)
         working-directory: apps/ios
         run: |
-          # Build without code signing
-          set +e
-          xcodebuild clean build \
+          # Build only the iOS app target, not the scheme (which includes Watch)
+          xcodebuild build \
             -project OpenClaw.xcodeproj \
-            -scheme OpenClaw \
+            -target OpenClaw \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            CODE_SIGN_STYLE=Automatic \
             ENABLE_BITCODE=NO \
-            2>&1 | tee build_log.txt | tail -200
-          BUILD_EXIT=$?
-          set -e
-          
-          echo "Build exit code: $BUILD_EXIT"
-          
+            ENABLE_APP_INTENTS_METADATA_GENERATION=NO \
+            OPENCLAW_CODE_SIGN_STYLE=Automatic \
+            OPENCLAW_DEVELOPMENT_TEAM="" \
+            OPENCLAW_APP_BUNDLE_ID=ai.openclaw.ios \
+            OPENCLAW_APP_PROFILE="" \
+            GCC_PREPROCESSOR_DEFINITIONS='$(inherited) OPENCLAW_CODE_SIGN_STYLE=Automatic' \
+            2>&1 | tee build_log.txt | tail -100
+
           # Find the .app
           APP_PATH=$(find build/DerivedData -name "OpenClaw.app" -path "*/Release-iphoneos/*" 2>/dev/null | head -1)
           
@@ -77,14 +67,17 @@ jobs:
           fi
           
           if [ -z "$APP_PATH" ]; then
-            echo "=== Build log tail ==="
-            tail -50 build_log.txt
+            echo "=== Build log errors ==="
+            grep -E "error:|BUILD FAILED" build_log.txt | tail -30
             echo "App not found!"
             exit 1
           fi
           
           echo "Found app at: $APP_PATH"
           ls -la "$APP_PATH"
+          
+          # Remove code signature data (make it truly unsigned)
+          rm -rf "$APP_PATH/_CodeSignature" 2>/dev/null || true
           
           # Package into IPA
           mkdir -p build/ipa/Payload
