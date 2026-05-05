@@ -5,7 +5,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-15
     
     steps:
       - name: Checkout
@@ -29,6 +29,9 @@ jobs:
         working-directory: apps/ios
         run: xcodegen generate
 
+      - name: Select Xcode 16
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+
       - name: Build unsigned IPA
         working-directory: apps/ios
         run: |
@@ -43,8 +46,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             ENABLE_BITCODE=NO \
-            GCC_WARN_INHIBIT_ALL_WARNINGS=YES \
-            | tail -50
+            | tail -100
 
           # Find the .app
           APP_PATH=$(find build/DerivedData -name "OpenClaw.app" -path "*/Release-iphoneos/*" | head -1)
@@ -55,7 +57,7 @@ jobs:
           fi
           
           echo "Found app at: $APP_PATH"
-          ls -la "$APP_PATH" || echo "App not found!"
+          ls -la "$APP_PATH" || { echo "App not found!"; exit 1; }
           
           # Package into IPA
           mkdir -p build/ipa/Payload
@@ -72,7 +74,7 @@ jobs:
           path: apps/ios/build/ipa/OpenClaw.ipa
           retention-days: 30
 
-      - name: Upload IPA to Release
+      - name: Create Release with IPA
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ios-unsigned-latest
