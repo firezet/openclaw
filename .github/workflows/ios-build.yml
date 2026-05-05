@@ -27,16 +27,25 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile || pnpm install
 
-      - name: Remove Watch target from project.yml
+      - name: Patch project.yml for unsigned build
         working-directory: apps/ios
         run: |
-          # Remove WatchApp dependency and Watch targets entirely
+          # Remove Watch targets
           yq 'del(.targets.OpenClawWatchApp)' -i project.yml
           yq 'del(.targets.OpenClawWatchExtension)' -i project.yml
           yq 'del(.targets.OpenClaw.dependencies[] | select(.target == "OpenClawWatchApp"))' -i project.yml
+          # Remove lint scripts
           yq 'del(.targets.OpenClaw.preBuildScripts)' -i project.yml
           yq 'del(.targets.OpenClaw.postCompileScripts)' -i project.yml
-          echo "Watch targets removed"
+          # Fix bundle IDs: parent is ai.openclaw.ios, extensions must be ai.openclaw.ios.*
+          yq '.targets.OpenClawShareExtension.settings.base.PRODUCT_BUNDLE_IDENTIFIER = "ai.openclaw.ios.share-extension"' -i project.yml
+          yq '.targets.OpenClawActivityWidget.settings.base.PRODUCT_BUNDLE_IDENTIFIER = "ai.openclaw.ios.activity-widget"' -i project.yml
+          # Also set entitlements-less signing for extensions
+          yq '.targets.OpenClawShareExtension.settings.base.CODE_SIGN_IDENTITY = ""' -i project.yml
+          yq '.targets.OpenClawShareExtension.settings.base.CODE_SIGN_STYLE = "Automatic"' -i project.yml
+          yq '.targets.OpenClawActivityWidget.settings.base.CODE_SIGN_IDENTITY = ""' -i project.yml
+          yq '.targets.OpenClawActivityWidget.settings.base.CODE_SIGN_STYLE = "Automatic"' -i project.yml
+          echo "Patched project.yml"
 
       - name: Generate Xcode project
         working-directory: apps/ios
