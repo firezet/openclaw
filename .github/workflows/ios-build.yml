@@ -8,8 +8,10 @@ jobs:
     runs-on: macos-15
     
     steps:
-      - name: Checkout
+      - name: Checkout release tag
         uses: actions/checkout@v4
+        with:
+          ref: v2026.5.3
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -20,21 +22,21 @@ jobs:
         run: |
           corepack enable
           corepack prepare pnpm@latest --activate
-          brew install xcodegen
+          brew install xcodegen yq
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile || pnpm install
 
-      - name: Strip lint scripts from project.yml
+      - name: Remove Watch target from project.yml
         working-directory: apps/ios
         run: |
-          # Use sed to remove preBuildScripts and postCompileScripts blocks
-          # First install yq for reliable YAML editing
-          brew install yq
+          # Remove WatchApp dependency and Watch targets entirely
+          yq 'del(.targets.OpenClawWatchApp)' -i project.yml
+          yq 'del(.targets.OpenClawWatchExtension)' -i project.yml
+          yq 'del(.targets.OpenClaw.dependencies[] | select(.target == "OpenClawWatchApp"))' -i project.yml
           yq 'del(.targets.OpenClaw.preBuildScripts)' -i project.yml
           yq 'del(.targets.OpenClaw.postCompileScripts)' -i project.yml
-          echo "Stripped lint scripts"
-          grep -c "preBuildScripts" project.yml || echo "No preBuildScripts left"
+          echo "Watch targets removed"
 
       - name: Generate Xcode project
         working-directory: apps/ios
@@ -71,7 +73,7 @@ jobs:
             echo "Build succeeded!"
           else
             echo "=== Build errors ==="
-            grep -E "error:" build_log.txt | grep -v "warning:" | grep -v "(indent)" | grep -v "(trailing)" | tail -20
+            grep -E "error:" build_log.txt | grep -v "warning:" | head -20
             echo "Build failed!"
             exit 1
           fi
@@ -81,7 +83,6 @@ jobs:
             APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "OpenClaw.app" 2>/dev/null | head -1)
           fi
           if [ -z "$APP_PATH" ]; then
-            echo "Searching..."
             find ~/Library/Developer/Xcode/DerivedData -name "*.app" 2>/dev/null | head -10
             echo "App not found!"
             exit 1
@@ -103,7 +104,7 @@ jobs:
           path: apps/ios/build/ipa/OpenClaw.ipa
           retention-days: 30
 
-      - name: Create Release with IPA
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ios-unsigned-latest
